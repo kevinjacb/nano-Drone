@@ -19,15 +19,25 @@ uint8_t devStatus;      // return status after each device operation (0 = succes
 uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
 uint16_t fifoCount;     // count of all bytes currently in FIFO
 uint8_t fifoBuffer[64];
-int motorPins[4] = {3, 5, 6, 9};
+int motorPins[4] = {5, 9, 3, 6};
 int motorSpeeds[4] = {0, 0, 0, 0};
 int testPower = 25;
 int changeLimit = 50;
 int maxLimit = 75;
 float euler[3];
 float ypr[3];
+float ypr_deg[3];
+
+
+void changeMotorSpeeds(int mSpeed);
+void setMotorSpeed(); 
+void getAngles();
 
 void setup() {
+  for (int i = 0; i < 4; i++)
+    pinMode(motorPins[i], OUTPUT);
+    changeMotorSpeeds(0);
+    setMotorSpeed();
 
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
   Wire.begin();
@@ -70,40 +80,84 @@ void setup() {
     Serial.println(F(")"));
   }
   pinMode(LED_PIN, OUTPUT);
-  for (int i = 0; i < 4; i++)
-    pinMode(motorPins[i], OUTPUT);
+  
 }
 
 void loop() {
-  if(Serial.available()>0){
-    int data = Serial.parseInt();
-    changeMotorSpeeds(data);
-    setMotorSpeed();
-  }
   if (!dmpReady)
     return;
-  getAngles();
-  if(abs(ypr[1])>2){
-    if(ypr[1]<0){
-      motorSpeeds[0] -= changeLimit;                        //need to check if the motorSpeeds are at the max or min, need to set threshold and
-      motorSpeeds[3] += changeLimit;                        //change values accordingly. Motors should never completely turn off at any stage.
-    }
-    else{
-      motorSpeeds[0] += changeLimit;
-      motorSpeeds[3] -= changeLimit;
+  if (Serial.available() > 0) {
+    int data = Serial.parseInt();
+    if (data > 0) {
+      
+
+      changeMotorSpeeds(data); 
+      
+      setMotorSpeed();
     }
   }
-  
-  delay(2);
+  getAngles();
+  if (abs(ypr_deg[1]) > 2) {
+    int currSpeeds[2] = {motorSpeeds[0], motorSpeeds[2]};
+    if (ypr_deg[1] < -2) {
+      //change values accordingly. Motors should never completely turn off at any stage.
+      while (ypr_deg[1] < -2) {
+        getAngles();
+        int change1 = map(ypr_deg[1], 0, -90, 0, 255),change2;
+        change2 = change1;
+        Serial.println(change2);
+        if(currSpeeds[0] < 30 || currSpeeds[1] < 30)
+          continue;
+        if(currSpeeds[0] == 255){
+          change2 = change1 *2;
+          change1 = 0;
+        }
+        if(currSpeeds[0] + change1 >= 255){
+          int adjust = currSpeeds[0] + change1 - 255;
+          change1 -= adjust;
+          change2 += adjust;
+        }
+        motorSpeeds[0] =  currSpeeds[0] + change1;
+        motorSpeeds[2] = currSpeeds[1] - change2;
+        setMotorSpeed();
+      }
+              
+    }
+    else {
+      while (ypr_deg[1] > 2) {
+        getAngles();
+        int change1 = map(ypr_deg[1], 0, 90, 0, 255),change2;
+        change2 = change1;
+        Serial.println(change2);
+        if(currSpeeds[0] < 30 || currSpeeds[1] < 30)
+          continue;
+        if(currSpeeds[1] == 255){
+          change1= change1 *2;
+          change2 = 0;
+        }
+        if(currSpeeds[1] + change2 >= 255){
+          int adjust = currSpeeds[1] + change2 - 255;
+          change1 += adjust;
+          change2 -= adjust;
+        }
+        if(currSpeeds[1] == 255);
+        motorSpeeds[0] = currSpeeds[0] - change1;
+        motorSpeeds[2] = currSpeeds[1] + change2;
+        setMotorSpeed();
+      }
+    }
+    delay(2);
+  }
 }
 
-void changeMotorSpeeds(int mSpeed){
-  for (int i = 0; i< 4; i++)
+
+void changeMotorSpeeds(int mSpeed) {
+  for (int i = 0; i < 4; i+=2)
     motorSpeeds[i] = mSpeed;
 }
-void setMotorSpeed(){
-    for (int i = 0; i < 4; i++)
-      analogWrite(motorPins[i], motorSpeeds[i]);
+void setMotorSpeed() {
+  for (int i = 0; i < 4; i++)
+    analogWrite(motorPins[i], motorSpeeds[i]);
 }
 
 void getAngles() {
@@ -118,9 +172,12 @@ void getAngles() {
   mpu.dmpGetGravity(&gravity, &q);
   mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
   Serial.print("ypr\t");
-  Serial.print(ypr[0] * 180 / M_PI);
+  Serial.print(ypr_deg[0] = ypr[0] * 180 / M_PI);
   Serial.print("\t");
-  Serial.print(ypr[1] * 180 / M_PI);
+  Serial.print(ypr_deg[1] = ypr[1] * 180 / M_PI);
   Serial.print("\t");
-  Serial.println(ypr[2] * 180 / M_PI);
+  Serial.println(ypr_deg[2] = ypr[2] * 180 / M_PI);
+  Serial.println(motorSpeeds[0]);
 }
+
+
