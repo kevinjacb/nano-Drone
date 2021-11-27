@@ -45,7 +45,7 @@ void setup() {
 #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
   Fastwire::setup(400, true);
 #endif
-  Serial.begin(115200);
+  Serial.begin(1000000);
   while (!Serial);
   Serial.println(F("Initializing I2C devices..."));
   mpu.initialize();
@@ -97,57 +97,72 @@ void loop() {
     }
   }
   getAngles();
-  if (abs(ypr_deg[1]) > 2) {
-    int currSpeeds[2] = {motorSpeeds[0], motorSpeeds[2]};
-    if (ypr_deg[1] < -2) {
-      //change values accordingly. Motors should never completely turn off at any stage.
-      while (ypr_deg[1] < -2) {
-        getAngles();
-        int change1 = map(ypr_deg[1], 0, -90, 0, 255),change2;
-        change2 = change1;
-        Serial.println(change2);
-        if(currSpeeds[0] < 30 || currSpeeds[1] < 30)
-          continue;
-        if(currSpeeds[0] == 255){
-          change2 = change1 *2;
-          change1 = 0;
-        }
-        if(currSpeeds[0] + change1 >= 255){
-          int adjust = currSpeeds[0] + change1 - 255;
-          change1 -= adjust;
-          change2 += adjust;
-        }
-        motorSpeeds[0] =  currSpeeds[0] + change1;
-        motorSpeeds[2] = currSpeeds[1] - change2;
-        setMotorSpeed();
-      }
-              
-    }
-    else {
-      while (ypr_deg[1] > 2) {
-        getAngles();
-        int change1 = map(ypr_deg[1], 0, 90, 0, 255),change2;
-        change2 = change1;
-        Serial.println(change2);
-        if(currSpeeds[0] < 30 || currSpeeds[1] < 30)
-          continue;
-        if(currSpeeds[1] == 255){
-          change1= change1 *2;
-          change2 = 0;
-        }
-        if(currSpeeds[1] + change2 >= 255){
-          int adjust = currSpeeds[1] + change2 - 255;
-          change1 += adjust;
-          change2 -= adjust;
-        }
-        if(currSpeeds[1] == 255);
-        motorSpeeds[0] = currSpeeds[0] - change1;
-        motorSpeeds[2] = currSpeeds[1] + change2;
-        setMotorSpeed();
-      }
-    }
-    delay(2);
-  }
+  balanceCopter();
+  delay(2);
+//  if (abs(ypr_deg[1]) > 2) {
+//    int currSpeeds[2] = {motorSpeeds[0], motorSpeeds[2]};
+//    if (ypr_deg[1] < -2) {
+//      //change values accordingly. Motors should never completely turn off at any stage.
+//      while (ypr_deg[1] < -2) {
+//        getAngles();
+//        int change1 = map(ypr_deg[1], 0, -60, 0,100),change2;
+//        change2 = change1;
+//        if(currSpeeds[0] < 30 || currSpeeds[1] < 30)
+//          continue;
+//        if(currSpeeds[0] == 255){
+//          change2 = change1 *2;
+//          change1 = 0;
+//        }
+//        if(currSpeeds[0] + change1 >= 255){
+//          int adjust = currSpeeds[0] + change1 - 255;
+//          change1 -= adjust;
+//          change2 += adjust;
+//        }
+//        if(ypr_deg[1] > -10){
+//          change1 -= 20;
+//          change2 -= 30;
+//        }
+//        motorSpeeds[0] =  currSpeeds[0] + change1;
+//        motorSpeeds[2] = currSpeeds[1] - change2;
+//        Serial.print("motorSpeed 1 : ");
+//        Serial.println(motorSpeeds[0]);
+//        Serial.print("motorSpeed 2 : ");
+//        Serial.println(motorSpeeds[2]);
+//        setMotorSpeed();
+//      }
+//              
+//    }
+//    else {
+//      while (ypr_deg[1] > 2) {
+//        getAngles();
+//        int change1 = map(ypr_deg[1], 0, 90, 0, 100),change2;
+//        change2 = change1;
+//        if(currSpeeds[0] < 30 || currSpeeds[1] < 30)
+//          continue;
+//        if(currSpeeds[1] == 255){
+//          change1= change1 *2;
+//          change2 = 0;
+//        }
+//        if(currSpeeds[1] + change2 >= 255){
+//          int adjust = currSpeeds[1] + change2 - 255;
+//          change1 += adjust;
+//          change2 -= adjust;
+//        }        
+//        motorSpeeds[0] = currSpeeds[0] - change1;
+//        motorSpeeds[2] = currSpeeds[1] + change2;
+//        Serial.print("motorSpeed 1 : ");
+//        Serial.println(motorSpeeds[0]);
+//        Serial.print("motorSpeed 2 : ");
+//        Serial.println(motorSpeeds[2]);
+//        setMotorSpeed();
+//      }
+//    }
+//    
+//      motorSpeeds[0] = currSpeeds[0];
+//      motorSpeeds[2] = currSpeeds[1];
+//      setMotorSpeed();
+//    delay(2);
+//  }
 }
 
 
@@ -180,4 +195,79 @@ void getAngles() {
   Serial.println(motorSpeeds[0]);
 }
 
+void balanceCopter(){
 
+  getAngles();
+  int pitch = ypr_deg[1];
+  int roll = ypr_deg[2];
+  int originalSpeeds[2] = {motorSpeeds[0], motorSpeeds[2]};
+  int change1,change2, prevAngle;
+  bool flag = false;
+  if(abs(pitch) > 2){
+    while(pitch > 2){
+      getAngles();
+      pitch = ypr_deg[1];
+      if(originalSpeeds[0] < 20 || originalSpeeds[1] < 20)
+        return;
+      change1 = abs(pitch);
+      if(prevAngle <= pitch)
+        change1+= 20;
+      else if(prevAngle > pitch){
+        change1 -= 10;
+      }
+      change2 = change1;
+      if(originalSpeeds[1] == 255){
+        change2 = 0;
+        change1 = change1*2;
+      }
+      if((originalSpeeds[1]+change2) > 255){
+        int adjust = originalSpeeds[1]+change2 -255;
+        change2 -= adjust;
+        change1 += adjust; 
+      }
+      motorSpeeds[0] = originalSpeeds[0]- change1;
+      motorSpeeds[2] = originalSpeeds[1]+ change2;
+      setMotorSpeed();
+              Serial.print("motorSpeed 1 : ");
+        Serial.println(motorSpeeds[0]);
+        Serial.print("motorSpeed 2 : ");
+        Serial.println(motorSpeeds[2]);
+      prevAngle = pitch;
+      delay(2);
+    }
+    while(pitch < -2){
+      getAngles();
+      pitch = ypr_deg[1];
+      if(originalSpeeds[0] < 20 || originalSpeeds[1] < 20)
+        continue;
+      change1 = abs(pitch);
+      if(prevAngle >= pitch)
+        change1 += 20;
+      else if(prevAngle < pitch){
+        change1 -= 10;
+      }
+      change2 = change1;
+      if(originalSpeeds[1] == 255){
+        change2 = 0;
+        change1 = change1*2;
+      }
+      if((originalSpeeds[1]+change2) > 255){
+        int adjust = originalSpeeds[1]+change2 -255;
+        change2 -= adjust;
+        change1 += adjust; 
+      }
+      motorSpeeds[0] = originalSpeeds[0]+ change1;
+      motorSpeeds[2] = originalSpeeds[1]- change2;
+              Serial.print("motorSpeed 1 : ");
+        Serial.println(motorSpeeds[0]);
+        Serial.print("motorSpeed 2 : ");
+        Serial.println(motorSpeeds[2]);
+      prevAngle = pitch;
+      delay(2);
+    }
+    motorSpeeds[0] = originalSpeeds[0];
+    motorSpeeds[2] = originalSpeeds[1];
+    setMotorSpeed();
+  }
+
+}
