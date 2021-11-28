@@ -24,11 +24,11 @@ float pitch, roll;
 int motorPins[4] = {5,9,3,6};
 int motorSpeeds[4] = {0,0,0,0}, throttle;
 float pidP = 0,pidI = 0, pidD = 0;
-double kp = 0.5,
-       ki = 0.0005,
-       kd = 0.3100;
+double kp = 2,
+       ki = 0.009,
+       kd = 2;
 float prevPitchError = 0, pitchError = 0;
-long currTime = 0, prevTime = 0;
+double currTime = 0, prevTime = 0;
 
 void setup() {
   for (int i = 0; i < 4; i++)
@@ -43,7 +43,7 @@ void setup() {
 #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
   Fastwire::setup(400, true);
 #endif
-  Serial.begin(1000000);
+  Serial.begin(2000000);
   while (!Serial);
   Serial.println(F("Initializing I2C devices..."));
   mpu.initialize();
@@ -84,6 +84,7 @@ void setup() {
 void loop() {
   prevTime = currTime;
   currTime = millis();
+  float elapsedTime = (currTime - prevTime)/1000;
   if (!dmpReady){
    Serial.println("oh hooo");
     return;
@@ -98,12 +99,13 @@ void loop() {
       setMotorSpeed();
     }
   }
-  long elapsedTime = currTime - prevTime;
   getAngles();
   pitchError = pitch;
   pidP = kp * pitchError;
-//  if(-3 < pitchError < 3)
+  if(-3 < pitchError && pitchError< 3){
+    Serial.println("tf");
     pidI = pidI + (ki*pitchError);
+  }
   pidD = kd*((pitchError - prevPitchError)/elapsedTime);
   int PID = pidP + pidI + pidD;
   if(PID < -255)
@@ -122,10 +124,13 @@ void loop() {
     motorSpeeds[2] = 0;
   if(throttle > 50)
   setMotorSpeed();
+  Serial.print(" PID : ");
+  Serial.println(pidD);
   Serial.print(" Motor 1 : ");
   Serial.println(motorSpeeds[0]);
   Serial.print(" Motor 2 : ");
   Serial.println(motorSpeeds[2]);
+  prevPitchError = pitchError;
 }
 
 void changeMotorSpeeds(int mSpeed) {
