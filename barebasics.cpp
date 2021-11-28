@@ -23,11 +23,12 @@ float ypr[3];
 float pitch, roll;
 int motorPins[4] = {5,9,3,6};
 int motorSpeeds[4] = {0,0,0,0}, throttle;
-float pidP = 0,pidI = 0, pidD = 0;
-double kp = 2,
-       ki = 0.009,
-       kd = 2;
-float prevPitchError = 0, pitchError = 0;
+float pidP_pitch = 0,pidI_pitch = 0, pidD_pitch = 0;
+float pidP_roll = 0, pidI_roll = 0, pidD_roll = 0;
+double kp = 1,
+       ki = 0.005,
+       kd = 0.2;
+float prevPitchError = 0, pitchError = 0,rollError = 0, prevRollError = 0;
 double currTime = 0, prevTime = 0;
 
 void setup() {
@@ -101,19 +102,33 @@ void loop() {
   }
   getAngles();
   pitchError = pitch;
-  pidP = kp * pitchError;
-  if(-3 < pitchError && pitchError< 3){
-    Serial.println("tf");
-    pidI = pidI + (ki*pitchError);
+  rollError = roll;
+  pidP_pitch = kp * pitchError;
+  pidP_roll = kp * rollError;
+  if(-3 < pitchError && pitchError < 3){
+//    Serial.println("tf");
+    pidI_pitch = pidI_pitch + (ki*pitchError);
   }
-  pidD = kd*((pitchError - prevPitchError)/elapsedTime);
-  int PID = pidP + pidI + pidD;
-  if(PID < -255)
-    PID = -255;
-  else if(PID > 255)
-    PID = 255;
-  motorSpeeds[0] = throttle - PID;
-  motorSpeeds[2] = throttle + PID;
+  if(-3 < rollError && rollError < 3){
+//    Serial.println("tf");
+    pidI_roll = pidI_roll + (ki*rollError);
+  }
+  pidD_pitch = kd*((pitchError - prevPitchError)/elapsedTime);
+  pidD_roll = kd*((rollError - prevRollError)/elapsedTime);
+  int PID_pitch = pidP_pitch + pidI_pitch + pidD_pitch;
+  int PID_roll = pidP_roll + pidI_roll + pidD_roll;
+  if(PID_pitch < -255)
+    PID_pitch = -255;
+  else if(PID_pitch > 255)
+    PID_pitch = 255;
+  if(PID_roll < -255)
+    PID_roll = -255;
+  else if(PID_roll > 255)
+    PID_roll = 255;
+  motorSpeeds[0] = throttle - PID_pitch;
+  motorSpeeds[2] = throttle + PID_pitch;
+  motorSpeeds[1] = throttle + PID_roll;
+  motorSpeeds[3] = throttle - PID_roll;
   if( motorSpeeds[0] > 255)
     motorSpeeds[0] = 255;
   else if(motorSpeeds[0] < 0)
@@ -122,15 +137,24 @@ void loop() {
     motorSpeeds[2] = 255;
   else if(motorSpeeds[2] < 0)
     motorSpeeds[2] = 0;
+  if( motorSpeeds[1] > 255)
+    motorSpeeds[1] = 255;
+  else if(motorSpeeds[1] < 0)
+    motorSpeeds[1] = 0;
+  if(motorSpeeds[3] > 255)
+    motorSpeeds[3] = 255;
+  else if(motorSpeeds[3] < 0)
+    motorSpeeds[3] = 0;
   if(throttle > 50)
   setMotorSpeed();
-  Serial.print(" PID : ");
-  Serial.println(pidD);
+//  Serial.print(" PID_pitch : ");
+//  Serial.println(pidD_pitch);
   Serial.print(" Motor 1 : ");
   Serial.println(motorSpeeds[0]);
   Serial.print(" Motor 2 : ");
   Serial.println(motorSpeeds[2]);
   prevPitchError = pitchError;
+  prevRollError = rollError;
 }
 
 void changeMotorSpeeds(int mSpeed) {
@@ -140,7 +164,7 @@ void changeMotorSpeeds(int mSpeed) {
 }
 
 void setMotorSpeed() {
-  for (int i = 0; i < 4; i+=2)
+  for (int i = 0; i < 4; i++)
     analogWrite(motorPins[i], motorSpeeds[i]);
 }
 
