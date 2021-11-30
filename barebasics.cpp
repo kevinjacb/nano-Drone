@@ -107,11 +107,11 @@ void loop() {
   pidP_roll = kp * rollError;
   if(-3 < pitchError && pitchError < 3){
 //    Serial.println("tf");
-    pidI_pitch = pidI_pitch + (ki*pitchError);
+    pidI_pitch += (ki*pitchError);
   }
   if(-3 < rollError && rollError < 3){
 //    Serial.println("tf");
-    pidI_roll = pidI_roll + (ki*rollError);
+    pidI_roll += (ki*rollError);
   }
   pidD_pitch = kd*((pitchError - prevPitchError)/elapsedTime);
   pidD_roll = kd*((rollError - prevRollError)/elapsedTime);
