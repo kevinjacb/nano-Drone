@@ -6,9 +6,9 @@ int16_t rAccX, rAccY, rAccZ, rGyroX, rGyroY, rGyroZ,rTemp;
 long long raxOffset, rayOffset, razOffset, rgxOffset, rgyOffset, rgzOffset;
 double accX, accY, accZ, gyroX, gyroY, gyroZ,temp;
 double gyroAX=0, gyroAY=0, gyroAZ=0, accAX=0, accAY=0, accAZ=0;
-float pitchAngle = 0, rollAngle = 0,pitchOut=0, rollOut=0,prevPitch = 0, prevRoll = 0;
-int pidPPitch = 0, pidIPitch = 0, pidDPitch = 0, pidPRoll = 0, pidIRoll = 0, pidDRoll = 0;
-int pidPitch, pidRoll,throttle=0;
+float pitchAngle = 0, rollAngle = 0,pitchOut=0, rollOut=0,prevPitch = 0, prevRoll = 0,prevYaw = 0,yawAngle = 0;
+int pidPPitch = 0, pidIPitch = 0, pidDPitch = 0, pidPRoll = 0, pidIRoll = 0, pidDRoll = 0,pidPYaw = 0, pidIYaw = 0, pidDYaw = 0;
+int pidPitch, pidRoll,pidYaw,throttle=0;
 void mpuInit();
 
 int motorPins[4] = {14,12,13,15};
@@ -21,8 +21,8 @@ double kp = 0.45, //0.45
 WiFiClient client;
 WiFiServer server(80);
 
-char* ssid = "ssid",
-*psswd = "pswd";
+char* ssid = "GERONIMO",
+*psswd = "drs12345";
 
 void setup() {
   // put your setup code here, to run once:
@@ -83,6 +83,9 @@ void loop() {
     }
   }
   pidCal();
+  prevPitch = pitchOut;
+  prevRoll = rollOut;
+  prevYaw = yawAngle;
   while((millis() - prevMillis) < 10);
 }
 
@@ -90,34 +93,47 @@ void pidCal(){
   pidPPitch = kp*pitchOut;
   if(abs(pitchOut) < 10)
     pidIPitch += ki*pitchOut;
-  pidDPitch = kd*(pitchOut-prevPitch)*0.01; // 0.01 = time elapsed(100Hz)
+  pidDPitch = kd*(pitchOut-prevPitch)/0.01; // 0.01 = time elapsed(100Hz)
   pidPitch = pidPPitch + pidDPitch + pidIPitch;
   pidPRoll = kp*rollOut;
   if(abs(rollOut) < 10)
     pidIRoll += ki*rollOut;
-  pidDRoll = kd*(rollOut - prevRoll)*0.01;
+  pidDRoll = kd*(rollOut - prevRoll)/0.01;
   pidRoll = pidPRoll + pidDRoll + pidIRoll;
+
+  pidPYaw = kp*yawAngle;
+  pidDYaw = kd*(yawAngle - prevYaw)/0.01;
+  pidYaw = pidPYaw + pidDYaw;
+  
   if(pidPitch < -150)
     pidPitch = -150;
   else if(pidPitch > 150)
     pidPitch = 150;
+    
   if(pidRoll < -150)
     pidRoll = -150;
   else if(pidRoll > 150)
     pidRoll = 150;
-  setMotorSpeeds(pidPitch,pidRoll);
-   
+
+  if(pidYaw < -150)
+    pidYaw = -150;
+  else if(pidYaw > 150)
+    pidYaw = 150;
+    
+  setMotorSpeeds(pidPitch,pidRoll,pidYaw);
 }
 
-void setMotorSpeeds(int pidP,int pidR){
+void setMotorSpeeds(int pidP,int pidR,int pidY){
   int out = 0;
-  pidP = -pidP;
+  pidP = pidP;
+  pidR = -pidR;
+  pidY = -pidY;
   if(!throttle)
-    pidP = pidR = 0;
-  analogWrite(motorPins[0],((out = throttle + pidP - pidR) > 255)?255:((out < 0)?0:out));
-  analogWrite(motorPins[1],((out = throttle + pidP + pidR) > 255)?255:((out < 0)?0:out));
-  analogWrite(motorPins[2],((out = throttle - pidP - pidR) > 255)?255:((out < 0)?0:out));
-  analogWrite(motorPins[3],((out = throttle - pidP + pidR) > 255)?255:((out < 0)?0:out));
+    pidP = pidR = pidY = 0;
+  analogWrite(motorPins[0],((out = throttle + pidP - pidR - pidY) > 255)?255:((out < 0)?0:out));
+  analogWrite(motorPins[1],((out = throttle + pidP + pidR + pidY) > 255)?255:((out < 0)?0:out));
+  analogWrite(motorPins[2],((out = throttle - pidP - pidR + pidY) > 255)?255:((out < 0)?0:out));
+  analogWrite(motorPins[3],((out = throttle - pidP + pidR - pidY) > 255)?255:((out < 0)?0:out));
 }
 void calibrateMPU(){
   Serial.println("Calibrating mpu, do not move.");
@@ -161,7 +177,8 @@ void calcAngles(){
   rollAngle += (rGyroX-rgxOffset)*0.000076;
   pitchAngle += (rGyroY-rgyOffset)*0.000076;
   gyroAZ = (rGyroZ-rgzOffset)*0.000076;
-
+  yawAngle += gyroAZ;
+  
   pitchAngle += rollAngle * sin(gyroAZ * (PI/180));               //If the IMU has yawed transfer the roll angle to the pitch angel
   rollAngle -= pitchAngle * sin(gyroAZ * (PI/180));
   
@@ -173,8 +190,8 @@ void calcAngles(){
     setInitial = false;
   }
   else{
-    pitchAngle = pitchAngle*0.98 + accAY*0.02;
-    rollAngle = rollAngle*0.98 - accAX*0.02;
+    pitchAngle = pitchAngle*0.998 + accAY*0.002;
+    rollAngle = rollAngle*0.998 + accAX*0.002;
   }
   //complementary filter
   pitchOut = pitchOut*0.9 + pitchAngle*0.1;
