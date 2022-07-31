@@ -21,8 +21,8 @@ double kp = 0.45, //0.45
 WiFiClient client;
 WiFiServer server(80);
 
-char* ssid = "GERONIMO",
-*psswd = "drs12345";
+char* ssid = "ssid",
+*psswd = "psswd";
 
 void setup() {
   // put your setup code here, to run once:
